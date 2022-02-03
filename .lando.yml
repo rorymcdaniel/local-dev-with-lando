@@ -1,0 +1,69 @@
+name: laracon
+recipe: laravel
+
+excludes:
+  - vendor
+  - node_modules
+
+config:
+  webroot: public
+  php: '8.1'
+  xdebug: true
+  via: nginx
+  cache: redis
+  database: postgres
+
+proxy:
+  mailhog:
+    - mail.laracon.lndo.site
+
+services:
+  node:
+    type: node:16
+    build:
+      - npm install
+      - npm run dev
+  mailhog:
+    type: mailhog
+    portforward: true # Generates a random localhost:port url on each restart. Specify port, or set up a proxy url.
+    hogfrom: # Probably the coolest configuration key ever.
+      - appserver
+  appserver:
+    build:
+      - '[ ! -f ".env" ] && cp .env.example .env || echo ".env already present"'
+      - composer install
+      - php artisan key:generate
+      - php artisan migrate # You could also seed, but be careful not to accidentally duplicate your seed data.
+    overrides:
+      depends_on: # This necessary for the "php artisan migrate" command. Can be omitted if you don't automate that.
+        - database
+  horizon:
+    type: php:8.1 # Be sure to specify version
+    via: cli
+    scanner: false # Don't wait for this service before considering the app "ready"
+    command: "php artisan horizon" # "php artisan" and not "lando artisan" because it's run within the container
+    overrides:
+      restart: always # This restarts the service after we terminate it with `lando horizon:terminate`
+
+
+tooling:
+  npm: # No need to specify a command here, Lando can figure this one out. Same for node, yarn, and gulp.
+    service: node
+  horizon:terminate: # I like the name to mimic the artisan command
+    service: horizon
+    description: "Restarts the Horizon service"
+    user: root # Docker wants this to be run as root ¯\_(ツ)_/¯
+    cmd: "php artisan horizon:terminate"
+  phpunit:
+    service: appserver
+    description: "Runs phpunit tests"
+    cmd: ./vendor/bin/phpunit --testdox
+  coverage-report:
+    service: appserver
+    cmd: "/app/vendor/bin/phpunit --coverage-html coverage-report/"
+    env: # The following env vars are only available for this command
+      XDEBUG_MODE: coverage
+  phpstan:
+    service: appserver
+    description: "Runs phpstan static analysis"
+    cmd: ./vendor/bin/phpstan analyse

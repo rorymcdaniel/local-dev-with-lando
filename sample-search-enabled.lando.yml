@@ -1,0 +1,47 @@
+name: search-enabled-api
+recipe: laravel
+config:
+  webroot: public
+  xdebug: true
+  via: nginx
+  cache: redis
+  php: '8.0'
+proxy:
+  mailhog:
+    - mail.search-enabled-api.lndo.site
+  kibana:
+    - kibana.search-enabled-api.lndo.site:5601
+  elasticsearch:
+    - elasticsearch.search-enabled-api.lndo.site:9200
+services:
+  cache:
+    portforward: 37373
+  database:
+    portforward: 36001
+  mailhog:
+    type: mailhog
+    hogfrom:
+      - appserver
+    portforward: true
+  elasticsearch:
+    type: compose
+    services:
+      image: docker.elastic.co/elasticsearch/elasticsearch:6.8.0
+      command: docker-entrypoint.sh elasticsearch
+      ports:
+        - "9200"
+        - "9300"
+  kibana:
+    type: compose
+    services:
+      image: docker.elastic.co/kibana/kibana:6.8.0
+      command: ./bin/kibana
+      ports:
+        - "5601"
+      depends_on:
+        - elasticsearch
+
+tooling:
+  phpunit:
+    service: appserver
+    cmd: "/app/vendor/bin/phpunit"

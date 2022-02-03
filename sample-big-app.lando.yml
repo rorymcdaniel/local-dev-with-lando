@@ -1,0 +1,62 @@
+name: big-laravel-app
+recipe: laravel
+excludes:
+  - node_modules
+
+config:
+  webroot: public
+  xdebug: true
+  cache: redis
+  database: postgres
+  php: '8.0'
+  via: nginx
+proxy:
+  mailhog:
+    - mail.big-laravel-app.lndo.site
+  websockets:
+    - websockets.big-laravel-app.lndo.site:6001
+services:
+  appserver:
+    type: php:8.0
+    build_as_root:
+      - pecl install pcov
+      - docker-php-ext-enable pcov
+  cache:
+    portforward: 37388
+  database:
+    portforward: 36033
+    type: postgres:11
+    env:
+      PGPASSWORD: laravel
+    build_as_root: # create a secondary postgres database
+      - echo "SELECT 'CREATE DATABASE secondarydb' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'secondarydb')\gexec" | psql -h database -U postgres
+  mailhog:
+    type: mailhog
+    hogfrom:
+      - appserver
+    portforward: true
+  websockets: # use BeyondCode Laravel Websockets as a service
+    type: php:8.0
+    via: cli
+    scanner: false
+    ssl: true
+    command: "php artisan websockets:serve --debug"
+    overrides:
+      ports:
+        - 6001:6001
+      depends_on:
+        - database
+        - cache
+
+tooling:
+  phpunit:
+    service: appserver
+    cmd: "/app/vendor/bin/phpunit"
+  coverage-report:
+    service: appserver
+    cmd: "/app/vendor/bin/phpunit --coverage-html coverage-report/"
+    env:
+      XDEBUG_MODE: coverage
+  psalm:
+    service: appserver
+    cmd: "/app/vendor/bin/psalm --disable-extension=xdebug"

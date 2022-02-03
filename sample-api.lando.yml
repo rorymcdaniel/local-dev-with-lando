@@ -1,0 +1,30 @@
+name: laravel-api
+recipe: laravel
+config:
+  webroot: public
+  xdebug: true
+  cache: redis
+  php: '8.0'
+proxy:
+  mailhog:
+    - mail.laravel-api.lndo.site
+services:
+  cache:
+    portforward: 37375
+  database:
+    portforward: 36002
+  mailhog:
+    type: mailhog
+    hogfrom:
+      - appserver
+    portforward: true
+tooling:
+  phpunit:
+    service: appserver
+    cmd: "/app/vendor/bin/phpunit --coverage-html reports"
+    env:
+      XDEBUG_MODE: coverage
+  phpstan:
+    service: appserver
+    cmd: "/app/vendor/bin/phpstan"
+
