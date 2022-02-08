@@ -2,29 +2,33 @@ name: laracon
 recipe: laravel
 
 excludes:
-  - vendor
-  - node_modules
+  - vendor # Performance increase because file changes are only synced on composer commands and restarts/rebuilds.
+  - node_modules # If you manually edit these files, your application will not see the edits.
 
 config:
   webroot: public
+  via: nginx
   php: '8.1'
   xdebug: true
-  via: nginx
   cache: redis
   database: postgres
 
 proxy:
   mailhog:
-    - mail.laracon.lndo.site
+    - mail.laracon.lndo.site # I like using this because it's easy to remember.
+  appserver_nginx:
+    - laracon.test # If you want to use .test, you can, but you need to do your own DNS entry
+    - laracon.lndo.site # If you specify a proxy, then you must add the .lndo.site domain IF you want to use it.
 
 services:
   node:
     type: node:16
-    build:
+    build: # This build step is optional, but why not automate it?
       - npm install
       - npm run dev
   mailhog:
     type: mailhog
+    ssl: true
     portforward: true # Generates a random localhost:port url on each restart. Specify port, or set up a proxy url.
     hogfrom: # Probably the coolest configuration key ever.
       - appserver
@@ -47,7 +51,7 @@ services:
 
 
 tooling:
-  npm: # No need to specify a command here, Lando can figure this one out. Same for node, yarn, and gulp.
+  npm:
     service: node
   horizon:terminate: # I like the name to mimic the artisan command
     service: horizon
@@ -57,7 +61,7 @@ tooling:
   phpunit:
     service: appserver
     description: "Runs phpunit tests"
-    cmd: ./vendor/bin/phpunit --testdox
+    cmd: ./vendor/bin/phpunit
   coverage-report:
     service: appserver
     cmd: "/app/vendor/bin/phpunit --coverage-html coverage-report/"
